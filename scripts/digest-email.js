@@ -198,6 +198,25 @@ function htmlToText(html) {
     .trim();
 }
 
+// Markdown for Server酱 (微信): keep links as [text](url), headings as #/##/###,
+// keyword highlight (.hl) → **bold**. Strip <head>/<style> so CSS doesn't leak.
+function htmlToMarkdown(html) {
+  return html
+    .replace(/<head>[\s\S]*?<\/head>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<a [^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)')
+    .replace(/<h1[^>]*>/gi, '\n# ').replace(/<\/h1>/gi, '\n')
+    .replace(/<h2[^>]*>/gi, '\n## ').replace(/<\/h2>/gi, '\n')
+    .replace(/<h3[^>]*>/gi, '\n### ').replace(/<\/h3>/gi, '\n')
+    .replace(/<\/(p|div|li)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<span class="hl">(.*?)<\/span>/gi, '**$1**')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 async function sendEmail(html, apiKey, toEmail) {
   const recipients = String(toEmail).split(',').map((s) => s.trim()).filter(Boolean);
   const res = await fetch('https://api.resend.com/emails', {
@@ -220,6 +239,23 @@ async function sendEmail(html, apiKey, toEmail) {
   }
 }
 
+// Server酱 (微信) push — markdown body. SendKey in URL path, no header auth.
+// Mirrors push_aihot.py: POST title+desp as form-urlencoded to sctapi.ftqq.com.
+async function pushWechat(markdown, sendkey) {
+  const body = new URLSearchParams();
+  body.set('title', `AI Builders 日报 · ${todayLong()}`);
+  body.set('desp', markdown);
+  const res = await fetch(`https://sctapi.ftqq.com/${sendkey}.send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.code !== 0) {
+    throw new Error(`Server酱 ${res.status} code=${data.code}: ${data.message || ''}`);
+  }
+}
+
 // DRY_RUN=1 → write the exact HTML that would be sent to a file instead of
 // emailing, so the rendered output can be inspected without touching an inbox.
 async function deliver(html) {
@@ -232,6 +268,14 @@ async function deliver(html) {
     return;
   }
   await sendEmail(html, process.env.RESEND_API_KEY, process.env.DELIVERY_EMAIL);
+  // Server酱 微信推送(可选):SERVERCHAN_SENDKEY 未配则跳过,失败不影响已发的邮件
+  if (process.env.SERVERCHAN_SENDKEY) {
+    try {
+      await pushWechat(htmlToMarkdown(html), process.env.SERVERCHAN_SENDKEY);
+    } catch (err) {
+      console.error(`wechat push failed (email already sent): ${err.message}`);
+    }
+  }
 }
 
 // -- Main --------------------------------------------------------------------
