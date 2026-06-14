@@ -59,8 +59,8 @@ async function fetchText(url) {
 }
 
 function todayLong() {
-  return new Date().toLocaleDateString('zh-CN', {
-    year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
+  return new Date().toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     timeZone: 'Asia/Shanghai'
   });
 }
@@ -173,7 +173,7 @@ function wrapHtml(inner) {
   .item { margin:0 0 22px; padding:0 0 22px; border-bottom:1px solid #eee; }
   h3 { font-size:16px; margin:0 0 8px; color:#111827; }
   p { margin:0 0 10px; font-size:15px; }
-  .hl { background:#fef08a; padding:0 3px; border-radius:3px; }
+  .link { margin:6px 0 0; }
   a { color:#2563eb; text-decoration:none; }
   a:hover { text-decoration:underline; }
   .footer { margin-top:28px; font-size:13px; color:#9ca3af; }
@@ -199,6 +199,7 @@ function htmlToText(html) {
 }
 
 async function sendEmail(html, apiKey, toEmail) {
+  const recipients = String(toEmail).split(',').map((s) => s.trim()).filter(Boolean);
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -207,8 +208,8 @@ async function sendEmail(html, apiKey, toEmail) {
     },
     body: JSON.stringify({
       from: 'AI Builders Digest <digest@resend.dev>',
-      to: [toEmail],
-      subject: `AI Builders Digest — ${todayLong()}`,
+      to: recipients,
+      subject: `AI Builders 日报 · ${todayLong()}`,
       html,
       text: htmlToText(html)
     })
@@ -288,17 +289,18 @@ async function main() {
     `- 输出纯中文(技术术语如 LLM/GPU/API/RAG/agent/fine-tuning 等保留英文；人名/公司名/产品名保留英文)。\n` +
     `- 板块顺序固定：X / 推特 → 官方博客 → 播客。某板块无内容则省略该板块。\n` +
     `- 每条内容必须有原始 URL，无 URL 的内容直接丢弃。绝不编造，只用素材里的内容。\n` +
+    `- 详细度：每条都要展开介绍，不要压成一句话摘要。遵循「观点 + 依据」(数据/例子/对比/原话)，让读者看完知道这人讲了什么、凭什么这么讲。宁可详尽，不要简略。\n` +
     `- 输出格式为 HTML 片段：只输出 body 内部内容，不要 <html>/<head>/<body> 标签，不要 \`\`\`html 代码块，不要任何解释性文字。\n` +
     `- 链接规则：所有原始 URL 一律写成 <a href="URL">详情</a>，绝不把原始 URL 以明文出现；「详情」紧跟摘要文字末尾(同一个 <p> 内)，不另起一行。结尾那行的仓库地址也用 <a href="...">详情</a>。\n` +
     `- 关键词高亮：每条摘要挑 1-3 个最核心的概念/数字/产品名，用 <span class="hl">关键词</span> 包裹。只标实质名词/数字，不标虚词、不标整句，每条不超过 3 个。\n` +
     `- 严格按以下结构输出(无内容的板块整段省略)：\n` +
     `<h1>AI Builders 日报 · 日期</h1>\n` +
     `<h2>X / 推特</h2>\n` +
-    `<div class="item"><h3>作者全名 (角色/公司)</h3><p>2-4 句中文摘要，核心词用 <span class="hl">高亮</span> 标注。<a href="原始URL">详情</a></p></div>\n` +
+    `<div class="item"><h3>作者全名 (角色/公司)</h3><p>先点出该作者当天的核心观点/判断(1 句)，再展开论据——具体数据、例子、对比或引用原话(2-4 句)，让读者明白他为什么这么判断。核心词用 <span class="hl">高亮</span> 标注。<a href="原始URL">详情</a></p></div>\n` +
     `<h2>官方博客</h2>\n` +
-    `<div class="item"><h3>博客名: 文章标题</h3><p>中文摘要，核心词用 <span class="hl">高亮</span> 标注。<a href="原始URL">详情</a></p></div>\n` +
+    `<div class="item"><h3>博客名: 文章标题</h3><p>展开文章核心主张(1 句)+ 关键细节/数据/结论(2-4 句)，让读者抓到要点和依据。核心词用 <span class="hl">高亮</span> 标注。<a href="原始URL">详情</a></p></div>\n` +
     `<h2>播客</h2>\n` +
-    `<div class="item"><h3>节目名 · 集标题</h3><p>The Takeaway 及中文摘要，核心词用 <span class="hl">高亮</span> 标注。<a href="原始URL">详情</a></p></div>\n` +
+    `<div class="item"><h3>节目名 · 集标题</h3><p>The Takeaway(一句核心收获)+ 展开介绍这集聊了什么(嘉宾观点/关键金句/具体案例，2-4 句)。核心词用 <span class="hl">高亮</span> 标注。<a href="原始URL">详情</a></p></div>\n` +
     `<p class="footer">由 Follow Builders 技能自动生成 · <a href="${REPO_URL}">详情</a></p>\n` +
     `- 正文段落不使用 em-dash(—)，用中文标点；标题分隔符保持原样。`;
 
